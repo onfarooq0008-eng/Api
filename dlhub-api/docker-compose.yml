@@ -1,0 +1,31 @@
+services:
+  api:
+    build: .
+    container_name: dlhub-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "8000"
+      TRUST_PROXY: "1"
+    # BIND_ADDR/HOST_PORT are set by install.sh (127.0.0.1 when HTTPS/Caddy is used)
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${HOST_PORT:-8000}:8000"
+
+  # Automatic HTTPS (Let's Encrypt). Only started when install.sh is given a domain.
+  caddy:
+    image: caddy:2-alpine
+    container_name: dlhub-caddy
+    restart: unless-stopped
+    profiles: ["https"]
+    depends_on: [api]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
