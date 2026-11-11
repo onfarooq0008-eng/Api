@@ -5,7 +5,8 @@
 #  Usage (run as root, from the project folder):
 #     sudo bash install.sh                          # HTTP on port 8000
 #     sudo bash install.sh --domain api.example.com # automatic HTTPS (DNS A record must point here)
-#     sudo bash install.sh --port 3000 --api-key MYKEY
+#     sudo bash install.sh --port 3000
+#     sudo bash install.sh --api-key MYKEY          # optional: require a key
 #
 #  Other commands:   update | status | logs | key | uninstall
 #
@@ -71,7 +72,7 @@ env_set() {
 case "$CMD" in
 status)    compose ps; exit 0;;
 logs)      compose logs -f --tail=100 api; exit 0;;
-key)       echo "API key(s): $(env_get API_KEYS)"; exit 0;;
+key)       echo "API key(s): ${API_KEYS_SHOW:-$(env_get API_KEYS)} (empty = no key needed)"; exit 0;;
 uninstall)
   read -r -p "Stop and remove DLHub API containers (files in $APP_DIR are kept)? [y/N] " a
   [ "$a" = "y" ] && compose down -v && say "Removed." ; exit 0;;
@@ -95,10 +96,6 @@ if [ ! -f .env ]; then
 fi
 if [ -n "$API_KEY_ARG" ]; then
   env_set API_KEYS "$API_KEY_ARG"
-elif [ -z "$(env_get API_KEYS)" ]; then
-  KEY="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
-  env_set API_KEYS "$KEY"
-  say "Generated a new API key"
 fi
 env_set TRUST_PROXY 1
 
@@ -136,8 +133,13 @@ IP="$(curl -4fsS --max-time 5 https://api.ipify.org 2>/dev/null || hostname -I |
 if [ -n "$DOMAIN" ]; then URL="https://$DOMAIN"; else URL="http://$IP:$HOST_PORT"; fi
 printf "\n${c_ok}DLHub API is running.${c_off}\n"
 echo   "  Base URL : $URL"
-echo   "  API key  : $(env_get API_KEYS)"
-echo   "  Test     : curl -H 'X-API-Key: $(env_get API_KEYS)' '$URL/api/platforms'"
+if [ -n "$(env_get API_KEYS)" ]; then
+  echo "  API key  : $(env_get API_KEYS)  (send as X-API-Key header)"
+  echo "  Test     : curl -H 'X-API-Key: $(env_get API_KEYS)' '$URL/api/platforms'"
+else
+  echo "  Auth     : none (open API, no key needed)"
+  echo "  Test     : curl '$URL/api/platforms'"
+fi
 echo   "  Web test : $URL/"
 printf "${c_dim}  Manage   : bash install.sh status|logs|key|update|uninstall  (in $APP_DIR)${c_off}\n"
 [ -n "$DOMAIN" ] && printf "${c_dim}  HTTPS needs a DNS A record: $DOMAIN -> $IP (certificate is issued on first request).${c_off}\n"

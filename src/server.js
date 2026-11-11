@@ -11,9 +11,6 @@ async function main() {
   if (provider.error) throw new Error('Downloader library missing - run "npm install" (or rebuild the Docker image).');
   const server = createServer(cfg, { provider });
 
-  if (!cfg.apiKeys.length) {
-    console.warn('WARNING: API_KEYS is empty - anyone who finds this server can use it. Set API_KEYS in .env');
-  }
   server.listen(cfg.port, cfg.host, () => {
     console.log(`dlhub-api listening on http://${cfg.host}:${cfg.port}  (provider=${provider.name}, auth=${cfg.apiKeys.length ? 'on' : 'OFF'})`);
   });

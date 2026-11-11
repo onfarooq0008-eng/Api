@@ -6,7 +6,7 @@ Pinterest, Google Drive, MediaFire, CapCut, Douyin, Xiaohongshu, SnackVideo, Coc
 (+ YouTube search) through one consistent JSON format, and streams files through a safe download proxy.
 
 * Node 20+, **no web framework** – only dependency is [`btch-downloader`](https://www.npmjs.com/package/btch-downloader)
-* **API-key auth** (`X-API-Key`), rate limiting, response cache + request de-duplication
+* **No API key needed** (optional `X-API-Key` protection if you ever want it), rate limiting, response cache + request de-duplication
 * SSRF-hardened file proxy with **Range/resume support** (works with Android DownloadManager / ExoPlayer)
 * Docker, one-click VPS installer, Koyeb-ready
 * `PROVIDER=mock` mode so you can build the app without hitting real platforms
@@ -20,8 +20,8 @@ sudo bash install.sh                            # http://SERVER_IP:8000
 sudo bash install.sh --domain api.example.com   # automatic HTTPS (point an A record at the VPS first)
 ```
 
-It installs Docker if needed, generates an API key, builds and starts the container (auto-restarts on reboot)
-and prints your **Base URL + API key**. Later: `bash install.sh update | status | logs | key | uninstall` (inside `/opt/dlhub-api`).
+It installs Docker if needed, builds and starts the container (auto-restarts on reboot)
+and prints your **Base URL**. Later: `bash install.sh update | status | logs | key | uninstall` (inside `/opt/dlhub-api`).
 
 Straight from GitHub, no upload:
 ```bash
@@ -34,21 +34,20 @@ curl -fsSL https://raw.githubusercontent.com/YOU/REPO/main/install.sh | \
 1. Push this folder to a GitHub repo.
 2. Koyeb dashboard → **Create Service → GitHub** → pick the repo → Builder: **Dockerfile**.
 3. Exposed port **8000** (HTTP). Health check path: `/api/health`.
-4. Environment variables: `API_KEYS` = your secret key (mark as **Secret**), `TRUST_PROXY` = `1`
-   (already default in the Dockerfile), optional `PUBLIC_URL` = `https://your-app.koyeb.app`.
+4. Environment variables: none required. Optional: `PUBLIC_URL` = `https://your-app.koyeb.app`.
 5. Deploy. Base URL is `https://<app>-<org>.koyeb.app`.
 
 Or with the CLI (check `koyeb app init --help` for your CLI version):
 ```bash
 koyeb app init dlhub --git github.com/YOU/REPO --git-branch main --git-builder docker \
-  --ports 8000:http --routes /:8000 --env API_KEYS=YOUR_KEY --env TRUST_PROXY=1
+  --ports 8000:http --routes /:8000 --env TRUST_PROXY=1
 ```
 
 ## 3) Run locally
 
 ```bash
 npm install
-cp .env.example .env          # set API_KEYS
+cp .env.example .env          # optional
 npm start                     # real downloads
 npm run dev:mock              # fake data, offline
 npm test
@@ -57,7 +56,7 @@ Open `http://localhost:8000/` for the built-in tester page.
 
 ## API (what your Android app calls)
 
-All `/api/*` routes except `/api/health` need header `X-API-Key: <key>`.
+No key is needed. (Optional: set `API_KEYS` in `.env` and every `/api/*` call must send `X-API-Key`.)
 
 | Route | Purpose |
 |---|---|
@@ -88,9 +87,7 @@ Search platforms return `"kind": "list"` with `items[] {title,url,thumbnail,type
 `400 MISSING_PARAM/BAD_URL/WRONG_PLATFORM`, `401 UNAUTHORIZED`, `404 UNKNOWN_PLATFORM`,
 `429 RATE_LIMITED` (+`Retry-After`), `502 NO_MEDIA_FOUND/UPSTREAM_ERROR`, `504 UPSTREAM_TIMEOUT`.
 
-**Android notes**: send the key as a header on both API calls and `downloadUrl` downloads
-(DownloadManager: `request.addRequestHeader("X-API-Key", key)`), or pass `?key=` to embed it in the links.
-Use the `url` (direct CDN link) for streaming in ExoPlayer, `downloadUrl` for saving files.
+**Android notes**: no headers needed. Use the `url` (direct CDN link) for streaming in ExoPlayer, `downloadUrl` for saving files.
 
 ## Configuration
 

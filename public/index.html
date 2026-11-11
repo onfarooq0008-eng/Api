@@ -29,11 +29,11 @@
 <body>
 <main>
   <h1>DLHub API tester</h1>
-  <p class="sub">Try every endpoint in the browser. Your API key stays in this browser only.</p>
+  <p class="sub">Try every endpoint in the browser. No API key needed.</p>
 
   <div class="card">
-    <label for="key">API key (X-API-Key)</label>
-    <input id="key" type="password" placeholder="paste your key" autocomplete="off">
+    <label for="key">API key (optional - leave empty)</label>
+    <input id="key" type="password" placeholder="not needed unless you enabled API_KEYS" autocomplete="off">
     <div class="row">
       <div><label for="platform">Platform</label><select id="platform"></select></div>
       <div><label for="limit">Limit (search platforms)</label><input id="limit" type="number" min="1" max="50" placeholder="5"></div>
