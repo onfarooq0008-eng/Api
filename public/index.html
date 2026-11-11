@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DLHub API tester</title>
+<style>
+  :root { --bg:#0f1115; --card:#181b22; --line:#2a2f3a; --text:#e8eaf0; --mut:#8b93a5; --acc:#4f8cff; --ok:#3ecf8e; --err:#ff6b6b; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f5f6f8; --card:#fff; --line:#dde0e6; --text:#1a1d24; --mut:#5d6575; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:20px 16px 60px; }
+  h1 { font-size:20px; margin:0 0 4px; } p.sub { color:var(--mut); margin:0 0 18px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px; }
+  label { display:block; font-size:12px; color:var(--mut); margin:10px 0 4px; }
+  input, select, button { width:100%; font:inherit; color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+  button { background:var(--acc); border-color:var(--acc); color:#fff; font-weight:600; cursor:pointer; margin-top:14px; }
+  button:disabled { opacity:.6; cursor:wait; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; } @media (max-width:520px){ .row { grid-template-columns:1fr; } }
+  .status { font-size:13px; margin-top:10px; } .ok { color:var(--ok); } .err { color:var(--err); }
+  .media { display:flex; gap:12px; align-items:center; padding:10px 0; border-top:1px solid var(--line); }
+  .media:first-child { border-top:0; }
+  .media img { width:64px; height:64px; object-fit:cover; border-radius:8px; background:var(--bg); flex:none; }
+  .media .t { flex:1; min-width:0; overflow-wrap:anywhere; } .media small { color:var(--mut); }
+  a.dl { color:var(--acc); text-decoration:none; font-weight:600; white-space:nowrap; }
+  pre { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px; overflow:auto; max-height:360px; font-size:12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>DLHub API tester</h1>
+  <p class="sub">Try every endpoint in the browser. Your API key stays in this browser only.</p>
+
+  <div class="card">
+    <label for="key">API key (X-API-Key)</label>
+    <input id="key" type="password" placeholder="paste your key" autocomplete="off">
+    <div class="row">
+      <div><label for="platform">Platform</label><select id="platform"></select></div>
+      <div><label for="limit">Limit (search platforms)</label><input id="limit" type="number" min="1" max="50" placeholder="5"></div>
+    </div>
+    <label for="input" id="inputLabel">URL</label>
+    <input id="input" placeholder="https://..." autocomplete="off">
+    <button id="go">Fetch</button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="card" id="out" hidden>
+    <div id="results"></div>
+    <details style="margin-top:12px"><summary>Raw JSON</summary><pre id="json"></pre></details>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let platforms = [];
+const store = { get(k){ try { return localStorage.getItem(k) || ''; } catch { return ''; } }, set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
+$('key').value = store.get('dlhub_key');
+$('key').addEventListener('input', () => store.set('dlhub_key', $('key').value));
+
+const headers = () => ($('key').value ? { 'X-API-Key': $('key').value } : {});
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+function syncPlatform() {
+  const p = platforms.find((x) => x.key === $('platform').value);
+  if (!p) return;
+  $('input').placeholder = p.example;
+  $('inputLabel').textContent = p.input === 'query' ? 'Search query' : p.input === 'url_or_query' ? 'URL or search term' : 'URL';
+  $('limit').disabled = !p.supportsLimit;
+}
+
+async function loadPlatforms() {
+  try {
+    const r = await fetch('/api/platforms', { headers: headers() });
+    const j = await r.json();
+    if (!j.success) throw new Error(j.error.message);
+    platforms = j.platforms;
+    $('platform').innerHTML = platforms.map((p) => `<option value="${esc(p.key)}">${esc(p.key)}${p.deprecated ? ' (deprecated)' : ''}</option>`).join('');
+    syncPlatform();
+    $('status').textContent = '';
+  } catch (e) {
+    $('status').innerHTML = `<span class="err">${esc(e.message)} — enter your API key, then reload the platforms.</span>`;
+  }
+}
+$('platform').addEventListener('change', syncPlatform);
+$('key').addEventListener('change', loadPlatforms);
+
+$('go').addEventListener('click', async () => {
+  const p = platforms.find((x) => x.key === $('platform').value);
+  if (!p) return loadPlatforms();
+  const params = new URLSearchParams();
+  params.set(p.input === 'query' ? 'query' : 'url', $('input').value.trim());
+  if (p.supportsLimit && $('limit').value) params.set('limit', $('limit').value);
+  $('go').disabled = true; $('status').textContent = 'Working…';
+  try {
+    const r = await fetch(`/api/download/${encodeURIComponent(p.key)}?` + params, { headers: headers() });
+    const j = await r.json();
+    $('out').hidden = false;
+    $('json').textContent = JSON.stringify(j, null, 2);
+    if (!j.success) { $('results').innerHTML = ''; $('status').innerHTML = `<span class="err">${r.status} ${esc(j.error.code)}: ${esc(j.error.message)}</span>`; return; }
+    $('status').innerHTML = `<span class="ok">OK</span> · cache ${esc(r.headers.get('x-cache') || '-')}`;
+    render(j.data);
+  } catch (e) {
+    $('status').innerHTML = `<span class="err">${esc(e.message)}</span>`;
+  } finally { $('go').disabled = false; }
+});
+
+function render(d) {
+  if (!d) { $('results').innerHTML = '<small>No normalized view for this platform — see raw JSON.</small>'; return; }
+  const rows = d.kind === 'media'
+    ? d.media.map((m) => ({ img: d.thumbnail, title: `${m.label}`, sub: m.type, dl: m.downloadUrl }))
+    : d.items.map((i) => ({ img: i.thumbnail, title: i.title || i.url, sub: [i.type, i.meta].filter(Boolean).join(' · '), dl: i.downloadUrl, link: i.url }));
+  const head = d.kind === 'media' ? `<strong>${esc(d.title || 'Result')}</strong>${d.author ? `<br><small>${esc(d.author)}</small>` : ''}` : '';
+  $('results').innerHTML = head + rows.map((r) => `
+    <div class="media">${r.img ? `<img src="${esc(r.img)}" alt="" referrerpolicy="no-referrer">` : '<img alt="">'}
+      <div class="t">${esc(r.title)}<br><small>${esc(r.sub)}</small></div>
+      ${r.dl ? `<a class="dl" data-u="${esc(r.dl)}" href="#">Download</a>` : r.link ? `<a class="dl" href="${esc(r.link)}" target="_blank" rel="noopener">Open</a>` : ''}
+    </div>`).join('');
+  // downloads go through the proxy and need the API key header, so fetch -> blob
+  $('results').querySelectorAll('a[data-u]').forEach((a) => a.addEventListener('click', async (ev) => {
+    ev.preventDefault();
+    a.textContent = '…';
+    try {
+      const r = await fetch(a.dataset.u, { headers: headers() });
+      if (!r.ok) throw new Error((await r.json()).error.message);
+      const b = await r.blob();
+      const name = /filename\*=UTF-8''([^;]+)/.exec(r.headers.get('content-disposition') || '');
+      const l = document.createElement('a');
+      l.href = URL.createObjectURL(b); l.download = name ? decodeURIComponent(name[1]) : 'download';
+      l.click(); setTimeout(() => URL.revokeObjectURL(l.href), 10000);
+      a.textContent = 'Download';
+    } catch (e) { a.textContent = 'Failed'; $('status').innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+  }));
+}
+loadPlatforms();
+</script>
+</body>
+</html>

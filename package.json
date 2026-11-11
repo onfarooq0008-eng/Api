@@ -1,0 +1,20 @@
+{
+  "name": "dlhub-api",
+  "version": "1.0.0",
+  "description": "Self-hosted media downloader REST API for mobile apps (TikTok, Instagram, YouTube, Spotify and more).",
+  "main": "src/server.js",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "dev:mock": "PROVIDER=mock node --watch src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "btch-downloader": "^6.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
